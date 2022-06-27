@@ -189,7 +189,7 @@ setInterval(async () => {
     const users = await db.collection('loggedUsers').find().toArray();
 
     for (let user of users) {
-        if (Date.now() - user.lastStatus > 10) {
+        if (Date.now() - user.lastStatus > 10000) {
             await removeParticipant(user);
         }
     }
