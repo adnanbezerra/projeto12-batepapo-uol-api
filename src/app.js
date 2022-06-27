@@ -19,16 +19,27 @@ mongoClient.connect().then(() => {
     db = mongoClient.db("batepapo_uol")
 })
 
-// Validation schema
+// New user validation schema
 const loginSchema = joi.object({
     name: joi.string().required()
 });
+
+// New message validation schema
+const messageSchema = joi.object({
+    to: joi.string().required(),
+    text: joi.string().required(),
+    type: joi.any().valid('message', 'private_message')
+})
+
+const fromSchema = joi.object({
+
+})
 
 server.post('/participants', async (request, response) => {
 
     const newUser = request.body;
 
-    if (await validateUsername(newUser)) {
+    if (validateUsername(newUser)) {
         response.sendStatus(422);
         return;
     }
@@ -38,7 +49,7 @@ server.post('/participants', async (request, response) => {
         return;
     }
 
-    createNewUser(request.body);
+    createNewUser(request.body.name);
     response.sendStatus(201);
 })
 
@@ -46,7 +57,7 @@ function createNewUser(newUserName) {
     let now = dayjs();
 
     const newUser = {
-        name: newUserName,
+        name: newUserName.name,
         lastStatus: Date.now()
     }
 
@@ -80,23 +91,83 @@ async function validateNewname(username) {
 }
 
 server.get('/participants', async (request, response) => {
-    await db.collection('loggedUsers').find().toArray().then(users => {
+    try {
+        const users = await db.collection('loggedUsers').find()
         response.send(users)
-    })
+        
+    } catch (error) {
+        console.error(error)
+    }
 })
 
-server.post('/messages', (request, response) => {
+server.post('/messages', async (request, response) => {
 
+    try {
+        if (validateMessage(request.body)) {
+            response.sendStatus(422);
+            return;
+        }
+
+        if (await validateMessageSender(request.header.user)) {
+            response.sendStatus(422);
+            return;
+        }
+
+        const newMessage = {
+            from: request.headers.user,
+            to: request.body.to,
+            text: request.body.text,
+            type: request.body.type,
+            time: dayjs().format('HH:mm:ss')
+        }
+
+        await db.collection('messages').insertOne(newMessage);
+        response.sendStatus(201);
+
+    } catch (error) {
+        console.error(error)
+    }
 })
 
-server.get('/messages', (request, response) => {
+async function validateMessageSender(user) {
+    try {
 
+        const check = await db.collection('loggedUsers').find({ name: user })
+        if (check) return false;
+        return true;
+
+    } catch (error) {
+        console.error(error)
+    }
+}
+
+function validateMessage(message) {
+    const validate = messageSchema.validate(message, { abortEarly: true });
+
+    if (validate.error) return true;
+    return false;
+}
+
+// Falta verificar o usuário
+server.get('/messages', async (request, response) => {
+    try {
+        const limit = request.query.limit;
+
+        const messagesList = await db.collection('messages').find().toArray();
+
+        if (limit) {
+            messagesList.slice(0, limit - 1);
+        }
+
+        response.status(200).send(messagesList);
+    } catch (error) {
+        console.error(error)
+    }
 })
 
 server.post('/status', (request, response) => {
-
+    if ('oi') response.sendStatus(404)
+    else response.sendStatus(200)
 })
 
-
 server.listen(5000);
-const anotacoes = '48 de alexsandro, 100 de André, 53 de Renata, pagar água e a Caixa'
