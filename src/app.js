@@ -152,12 +152,13 @@ function validateMessage(message) {
     return false;
 }
 
-// Falta verificar o usuário
 server.get('/messages', async (request, response) => {
     try {
         const limit = request.query.limit;
 
-        const messagesList = await db.collection('messages').find().toArray();
+        const messagesList = await db.collection('messages').find({
+            to: { $in: ['Todos', request.headers.user]}
+        }).toArray();
 
         if (limit) {
             messagesList.slice(0, limit - 1);
