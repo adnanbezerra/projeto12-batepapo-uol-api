@@ -6,6 +6,7 @@ dotenv.config()
 import joi from 'joi';
 import dayjs from 'dayjs';
 dayjs().format()
+const TIMER_INTERVAL = 15000;
 
 // Backend server basic configs
 const server = express();
@@ -49,28 +50,32 @@ server.post('/participants', async (request, response) => {
         return;
     }
 
-    createNewUser(request.body);
+    await createNewUser(request.body);
     response.sendStatus(201);
 })
 
-function createNewUser(newUserName) {
-    let now = dayjs();
+async function createNewUser(newUserName) {
+    try {
+        let now = dayjs();
 
-    const newUser = {
-        name: newUserName.name,
-        lastStatus: Date.now()
+        const newUser = {
+            name: newUserName.name,
+            lastStatus: Date.now()
+        }
+
+        const loginMessage = {
+            from: newUserName.name,
+            to: 'Todos',
+            text: 'entra na sala...',
+            type: 'status',
+            time: now.format("HH:mm:ss")
+        }
+
+        await db.collection('loggedUsers').insertOne(newUser)
+        await db.collection('messages').insertOne(loginMessage)
+    } catch (error) {
+        console.log(error)
     }
-
-    const loginMessage = {
-        from: newUserName.name,
-        to: 'Todos',
-        text: 'entra na sala...',
-        type: 'status',
-        time: now.format("HH:mm:ss")
-    }
-
-    db.collection('loggedUsers').insertOne(newUser)
-    db.collection('messages').insertOne(loginMessage)
 }
 
 function validateUsername(name) {
@@ -174,10 +179,35 @@ server.post('/status', async (request, response) => {
     await db.collection('loggedUsers').updateOne({
         _id: user._id
     }, {
-        $set: {...user, lastStatus: Date.now()}
+        $set: { ...user, lastStatus: Date.now() }
     })
     response.sendStatus(200)
 
 })
+
+setInterval(async () => {
+    const users = await db.collection('loggedUsers').find().toArray();
+
+    for (let user of users) {
+        if (Date.now() - user.lastStatus > 10) {
+            await removeParticipant(user);
+        }
+    }
+
+}, TIMER_INTERVAL);
+
+async function removeParticipant(user) {
+    await db.collection('loggedUsers').deleteOne({ name: user.name });
+
+    const message = {
+        from: user.name,
+        to: 'Todos',
+        text: 'sai da sala...',
+        type: 'status',
+        time: dayjs().format('HH:mm:ss')
+    }
+
+    await db.collection('messages').insertOne(message)
+}
 
 server.listen(5000);
