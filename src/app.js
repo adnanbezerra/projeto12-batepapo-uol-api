@@ -49,7 +49,7 @@ server.post('/participants', async (request, response) => {
         return;
     }
 
-    createNewUser(request.body.name);
+    createNewUser(request.body);
     response.sendStatus(201);
 })
 
@@ -62,7 +62,7 @@ function createNewUser(newUserName) {
     }
 
     const loginMessage = {
-        from: newUserName,
+        from: newUserName.name,
         to: 'Todos',
         text: 'entra na sala...',
         type: 'status',
@@ -92,9 +92,8 @@ async function validateNewname(username) {
 
 server.get('/participants', async (request, response) => {
     try {
-        const users = await db.collection('loggedUsers').find()
+        const users = await db.collection('loggedUsers').find().toArray()
         response.send(users)
-        
     } catch (error) {
         console.error(error)
     }
@@ -165,9 +164,20 @@ server.get('/messages', async (request, response) => {
     }
 })
 
-server.post('/status', (request, response) => {
-    if ('oi') response.sendStatus(404)
-    else response.sendStatus(200)
+server.post('/status', async (request, response) => {
+
+    const username = request.headers.user;
+    const user = await db.collection('loggedUsers').findOne({ name: username });
+
+    if (!user) { return response.sendStatus(404) }
+
+    await db.collection('loggedUsers').updateOne({
+        _id: user._id
+    }, {
+        $set: {...user, lastStatus: Date.now()}
+    })
+    response.sendStatus(200)
+
 })
 
 server.listen(5000);
